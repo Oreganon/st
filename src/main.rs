@@ -41,7 +41,7 @@ async fn view(req: HttpRequest) -> impl Responder {
     if !is_same_file(content_dir, parent).unwrap() {
         return HttpResponse::Ok().body("no\n");
     }
-    let content = fs::read_to_string(supplied_path).unwrap();
+    let content = fs::read_to_string(supplied_path).unwrap_or("Could not display".to_string());
     let response = format!(
         "<html><body style=\"white-space: pre;\">{content}</body></html>"
     );
@@ -65,7 +65,7 @@ async fn direct(req: HttpRequest) -> impl Responder {
         return HttpResponse::Ok().body("no\n");
     }
 
-    let content = fs::read_to_string(supplied_path).unwrap();
+    let content = fs::read(supplied_path).unwrap();
     HttpResponse::Ok()
         .insert_header(("Content-Security-Policy", "script-src 'none'"))
         .body(content)
