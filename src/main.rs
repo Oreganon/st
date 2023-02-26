@@ -44,7 +44,7 @@ async fn view(req: HttpRequest) -> impl Responder {
     let content = fs::read_to_string(supplied_path).unwrap();
     dbg!(content.clone());
     let response = format!(
-        "<html><body style=\"white-space: pre-line;\">{content}</body></html>"
+        "<html><body style=\"white-space: pre;\">{content}</body></html>"
     );
     HttpResponse::Ok()
         .content_type(ContentType::html())
