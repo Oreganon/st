@@ -3,8 +3,10 @@ use actix_multipart::Multipart;
 use actix_web::{get, post, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use futures_util::StreamExt as _;
 use sha2::{Digest, Sha256};
+use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use tempfile::NamedTempFile;
@@ -44,22 +46,21 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
         }
     };
 
-    while let Some(item) = payload.next().await {
-        let mut field = item.unwrap();
+    let item = payload.next().await.unwrap();
+    let mut field = item.unwrap();
 
-        let mut total_size = 0;
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.next().await {
-            let chunk = &chunk.unwrap();
-            total_size += chunk.len();
-            if total_size > MAX_SIZE_IN_BYTES {
-                return HttpResponse::Ok().body("too big\n");
-            }
-            hasher.update(chunk);
-            tempfile.write(chunk).unwrap();
+    let mut total_size = 0;
+    // Field in turn is stream of *Bytes* object
+    while let Some(chunk) = field.next().await {
+        let chunk = &chunk.unwrap();
+        total_size += chunk.len();
+        if total_size > MAX_SIZE_IN_BYTES {
+            return HttpResponse::Ok().body("too big\n");
         }
-        break; // I only want one
+        hasher.update(chunk);
+        tempfile.write(chunk).unwrap();
     }
+    let user_provided_filename = field.content_disposition().get_filename();
 
     let result = hasher.finalize();
     let id = format!("{:x}", result).chars().take(6).collect::<String>();
@@ -67,8 +68,27 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
     let (_file, path) = tempfile.keep().unwrap();
 
     let name = {
-        let guess = infer::get_from_path(path.clone()).unwrap().unwrap();
-        let ext = guess.extension();
+        let user_provided_ext = if let Some(name) = user_provided_filename {
+            Path::new(name)
+            .extension()
+            .and_then(OsStr::to_str)
+        } else {
+            None
+        };
+        let guess = infer::get_from_path(path.clone());
+        let ext_guess = if let Ok(Some(t)) = guess {
+            Some(t.extension())
+        } else {
+            None
+        };
+        let ext = if user_provided_ext == None && ext_guess == None {
+            return HttpResponse::Ok().body("cannot figure out file extension\n");
+        } else if ext_guess != None {
+            ext_guess.unwrap()
+        } else {
+            user_provided_ext.unwrap()
+        };
+            
         format!("{id}.{ext}")
     };
 
