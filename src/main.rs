@@ -11,6 +11,7 @@ use tempfile::NamedTempFile;
 
 const CONTENT_DIR: &str = "./content";
 const RETAIN_SECS: u64 = 1800;
+const MAX_SIZE_IN_BYTES: usize = 1_000_000;
 
 #[get("/")]
 async fn hello(req: HttpRequest) -> impl Responder {
@@ -38,9 +39,14 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
     while let Some(item) = payload.next().await {
         let mut field = item.unwrap();
 
+        let mut total_size = 0;
         // Field in turn is stream of *Bytes* object
         while let Some(chunk) = field.next().await {
             let chunk = &chunk.unwrap();
+            total_size += chunk.len();
+            if total_size > MAX_SIZE_IN_BYTES {
+                return HttpResponse::Ok().body("too big\n");
+            }
             hasher.update(chunk);
             tempfile.write(chunk).unwrap();
         }
