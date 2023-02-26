@@ -5,9 +5,12 @@ use futures_util::StreamExt as _;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
 use tempfile::NamedTempFile;
 
 const CONTENT_DIR: &str = "./content";
+const RETAIN_SECS: u64 = 1800;
 
 #[get("/")]
 async fn hello(req: HttpRequest) -> impl Responder {
@@ -64,6 +67,30 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    thread::spawn(|| {
+        loop {
+            for entry in fs::read_dir(CONTENT_DIR).unwrap() {
+                let entry = entry.unwrap();
+                let metadata = entry.metadata().unwrap();
+                if let Ok(time) = metadata.accessed() {
+                    let now = std::time::SystemTime::now();
+                    if let Ok(duration) = now.duration_since(time) {
+                        if duration.as_secs() >= RETAIN_SECS {
+                            fs::remove_file(entry.path()).unwrap();
+                        }
+                    } else {
+                        // backwards time? PepoBan
+                        fs::remove_file(entry.path()).unwrap();
+                    }
+                } else {
+                    // No accessed time? PepoBan
+                    fs::remove_file(entry.path()).unwrap();
+                }
+            }
+            thread::sleep(Duration::from_secs(RETAIN_SECS.saturating_sub(3)));
+        }
+    });
+
     fs::create_dir_all(CONTENT_DIR).expect("Could not create \"host\" dir");
     HttpServer::new(|| {
         App::new().service(hello).service(upload).service(
