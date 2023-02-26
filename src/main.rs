@@ -36,6 +36,14 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
     let mut hasher = Sha256::new();
     let mut tempfile = NamedTempFile::new().unwrap();
 
+    if let Some(length) = req.headers().get("content-length") {
+        // PepoBan early but don't rely on user supplied content-length
+        // The length is checked again below
+        if length.to_str().unwrap().parse::<usize>().unwrap() > MAX_SIZE_IN_BYTES {
+            return HttpResponse::Ok().body("too big\n");
+        }
+    };
+
     while let Some(item) = payload.next().await {
         let mut field = item.unwrap();
 
