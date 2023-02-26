@@ -1,6 +1,6 @@
-use actix_files as afs;
 use actix_multipart::Multipart;
-use actix_web::{get, post, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, App, HttpRequest, http::header::ContentType, HttpResponse, HttpServer, Responder};
+use same_file::is_same_file;
 use futures_util::StreamExt as _;
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
@@ -26,6 +26,50 @@ async fn hello(req: HttpRequest) -> impl Responder {
 curl -F'file=@yourfile.png' https://{host}"
     );
     HttpResponse::Ok().body(response)
+}
+
+#[get("/v/{file}")]
+async fn view(req: HttpRequest) -> impl Responder {
+    let filename = req.match_info().get("file").unwrap();
+    let supplied_path = format!("{CONTENT_DIR}/{filename}");
+
+    let path = Path::new(&supplied_path);
+    let parent = path.parent().unwrap();
+
+    let content_dir = Path::new(CONTENT_DIR);
+
+    if !is_same_file(content_dir, parent).unwrap() {
+        return HttpResponse::Ok().body("no\n");
+    }
+    let content = fs::read_to_string(supplied_path).unwrap();
+    dbg!(content.clone());
+    let response = format!(
+        "<html><body style=\"white-space: pre-line;\">{content}</body></html>"
+    );
+    HttpResponse::Ok()
+        .content_type(ContentType::html())
+        .insert_header(("Content-Security-Policy", "script-src 'none'"))
+        .body(response)
+}
+
+#[get("/{file}")]
+async fn direct(req: HttpRequest) -> impl Responder {
+    let filename = req.match_info().get("file").unwrap();
+    let supplied_path = format!("{CONTENT_DIR}/{filename}");
+
+    let path = Path::new(&supplied_path);
+    let parent = path.parent().unwrap();
+
+    let content_dir = Path::new(CONTENT_DIR);
+
+    if !is_same_file(content_dir, parent).unwrap() {
+        return HttpResponse::Ok().body("no\n");
+    }
+
+    let content = fs::read_to_string(supplied_path).unwrap();
+    HttpResponse::Ok()
+        .insert_header(("Content-Security-Policy", "script-src 'none'"))
+        .body(content)
 }
 
 #[post("/")]
@@ -95,7 +139,7 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
     let final_path = format!("{CONTENT_DIR}/{name}");
     fs::copy(path, final_path).unwrap();
 
-    let response = format!("{host}/{name}\n");
+    let response = format!("{host}/{name}\n{host}/v/{name}\n");
     HttpResponse::Ok().body(response)
 }
 
@@ -127,11 +171,7 @@ async fn main() -> std::io::Result<()> {
 
     fs::create_dir_all(CONTENT_DIR).expect("Could not create \"host\" dir");
     HttpServer::new(|| {
-        App::new().service(hello).service(upload).service(
-            afs::Files::new("/", CONTENT_DIR)
-                .show_files_listing()
-                .use_last_modified(true),
-        )
+        App::new().service(hello).service(upload).service(view).service(direct)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
