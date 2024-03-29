@@ -1,7 +1,9 @@
 use actix_multipart::Multipart;
-use actix_web::{get, post, App, HttpRequest, http::header::ContentType, HttpResponse, HttpServer, Responder};
-use same_file::is_same_file;
+use actix_web::{
+    get, http::header::ContentType, post, App, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use futures_util::StreamExt as _;
+use same_file::is_same_file;
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
 use std::fs;
@@ -28,6 +30,20 @@ curl -F'file=@yourfile.png' https://{host}"
     HttpResponse::Ok().body(response)
 }
 
+#[get("/sgg")]
+async fn up(_req: HttpRequest) -> impl Responder {
+    let response = r#"
+    <html>
+    <body>
+        <form action="/?direct=true" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" />
+            <input type="submit" value="Upload" />
+        </form>
+    </body>
+    "#;
+    HttpResponse::Ok().body(response)
+}
+
 #[get("/v/{file}")]
 async fn view(req: HttpRequest) -> impl Responder {
     let filename = req.match_info().get("file").unwrap();
@@ -42,9 +58,7 @@ async fn view(req: HttpRequest) -> impl Responder {
         return HttpResponse::Ok().body("no\n");
     }
     let content = fs::read_to_string(supplied_path).unwrap_or("Could not display".to_string());
-    let response = format!(
-        "<html><body style=\"white-space: pre;\">{content}</body></html>"
-    );
+    let response = format!("<html><body style=\"white-space: pre;\">{content}</body></html>");
     HttpResponse::Ok()
         .content_type(ContentType::html())
         .insert_header(("Content-Security-Policy", "script-src 'none'"))
@@ -112,9 +126,7 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
 
     let name = {
         let user_provided_ext = if let Some(name) = user_provided_filename {
-            Path::new(name)
-            .extension()
-            .and_then(OsStr::to_str)
+            Path::new(name).extension().and_then(OsStr::to_str)
         } else {
             None
         };
@@ -131,12 +143,19 @@ async fn upload(req: HttpRequest, mut payload: Multipart) -> impl Responder {
         } else {
             user_provided_ext.unwrap()
         };
-            
+
         format!("{id}.{ext}")
     };
 
     let final_path = format!("{CONTENT_DIR}/{name}");
     fs::copy(path, final_path).unwrap();
+
+    if req.query_string().contains("direct") {
+        println!("Direct link: {host}/{name}");
+        return HttpResponse::MovedPermanently()
+            .insert_header(("Location", format!("/{name}")))
+            .finish();
+    }
 
     let response = format!("{host}/{name}\n{host}/v/{name}\n");
     HttpResponse::Ok().body(response)
@@ -170,7 +189,12 @@ async fn main() -> std::io::Result<()> {
 
     fs::create_dir_all(CONTENT_DIR).expect("Could not create \"host\" dir");
     HttpServer::new(|| {
-        App::new().service(hello).service(upload).service(view).service(direct)
+        App::new()
+            .service(hello)
+            .service(up)
+            .service(upload)
+            .service(view)
+            .service(direct)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
