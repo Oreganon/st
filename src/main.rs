@@ -42,6 +42,7 @@ async fn up(_req: HttpRequest) -> impl Responder {
                 align-items: center;
                 height: 100vh;
                 margin: 0;
+                font-family: sans-serif;
             }
             form {
                 display: flex;
