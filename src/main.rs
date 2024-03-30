@@ -46,6 +46,9 @@ async fn up(_req: HttpRequest) -> impl Responder {
                 margin: 0;
                 font-family: sans-serif;
             }
+            h1, p {
+                margin: 0;
+            }
             form {
                 display: flex;
                 flex-direction: column;
@@ -56,6 +59,7 @@ async fn up(_req: HttpRequest) -> impl Responder {
     <body>
         <form id="form" action="/?direct=true" method="post" enctype="multipart/form-data">
             <h1>Select or paste an image.</h1>
+            <p>Images are deleted after 30 minutes.</p>
             <input id="file" type="file" name="file">
             <input type="submit" value="Upload">
         </form>
