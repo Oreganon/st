@@ -33,8 +33,10 @@ curl -F'file=@yourfile.png' https://{host}"
 #[get("/sgg")]
 async fn up(_req: HttpRequest) -> impl Responder {
     let response = r#"
-    <html>
-    <body>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <title>Upload</title>
         <style>
             body {
                 display: flex;
@@ -50,9 +52,12 @@ async fn up(_req: HttpRequest) -> impl Responder {
                 gap: 1rem;
             }
         </style>
+    </head>
+    <body>
         <form id="form" action="/?direct=true" method="post" enctype="multipart/form-data">
-            <input id="file" type="file" name="file" />
-            <input type="submit" value="Upload" />
+            <h1>Select or paste an image.</h1>
+            <input id="file" type="file" name="file">
+            <input type="submit" value="Upload">
         </form>
         <script>
             const form = document.getElementById("form");
