@@ -35,10 +35,32 @@ async fn up(_req: HttpRequest) -> impl Responder {
     let response = r#"
     <html>
     <body>
-        <form action="/?direct=true" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" />
+        <style>
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            form {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+        </style>
+        <form id="form" action="/?direct=true" method="post" enctype="multipart/form-data">
+            <input id="file" type="file" name="file" />
             <input type="submit" value="Upload" />
         </form>
+        <script>
+            const form = document.getElementById("form");
+            const fileInput = document.getElementById("file");
+
+            window.addEventListener('paste', e => {
+                fileInput.files = e.clipboardData.files;
+            });
+        </script>
     </body>
     "#;
     HttpResponse::Ok().body(response)
